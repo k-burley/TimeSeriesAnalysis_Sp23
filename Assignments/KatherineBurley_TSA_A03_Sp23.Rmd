@@ -1,0 +1,346 @@
+---
+title: "ENV 790.30 - Time Series Analysis for Energy Data | Spring 2023"
+subtitle: "Assignment 3 - Due date 02/10/23"
+author: "Katherine Burley"
+output: pdf_document
+geometry: margin=2.54cm
+editor_options: 
+  chunk_output_type: console
+---
+  
+## Directions
+  
+You should open the .rmd file corresponding to this assignment on RStudio. The file is available on our class repository on Github. 
+
+Once you have the file open on your local machine the first thing you will do is rename the file such that it includes your first and last name (e.g., "LuanaLima_TSA_A02_Sp23.Rmd"). Then change "Student Name" on line 4 with your name. 
+
+Then you will start working through the assignment by  **creating code and output** that answer each question. Be sure to use this assignment document. Your report should contain the answer to each question and any plots/tables you obtained (when applicable).
+
+Please keep this R code chunk options for the report. It is easier for us to grade when we can see code and output together. And the tidy.opts will make sure that line breaks on your code chunks are automatically added for better visualization. 
+
+```{r setup, include=FALSE} 
+knitr::opts_chunk$set(echo = TRUE,tidy.opts=list(width.cutoff=80), tidy=FALSE) 
+```
+
+When you have completed the assignment, **Knit** the text and code into a single PDF file. Submit this pdf using Sakai. 
+
+## Questions 
+
+Consider the same data you used for A2 from the spreadsheet "Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx". The data comes from the US Energy Information and Administration and corresponds to the December 2022 **Monthly** Energy Review. Once again you will work only with the following columns: Total Biomass Energy Production, Total Renewable Energy Production, Hydroelectric Power Consumption. Create a data frame structure with these three time series only. 
+
+R packages needed for this assignment:"forecast","tseries", and "Kendall". Install these packages, if you haven't done yet. Do not forget to load them before running your script, since they are NOT default packages.\\
+
+```{r}
+#Load/install required package here
+library(dplyr)
+library(forecast)
+library(tseries)
+library(readxl)
+library(ggplot2)
+library(cowplot)
+```
+
+##Trend Component
+
+### Bring in data
+```{r}
+#Importing data set
+energy_data <- as.data.frame(read_excel(path="../Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",
+                                        skip = 12, sheet="Monthly Data",col_names=FALSE))
+  # Use as.data.frame because lm is not recognizing the df columns as a vector
+
+#Extract the column names from row 11
+read_col_names <- read_excel(path="../Data/Table_10.1_Renewable_Energy_Production_and_Consumption_by_Source.xlsx",
+                             skip = 10,n_max = 1, sheet="Monthly Data",col_names=FALSE) 
+colnames(energy_data) <- read_col_names
+
+# Subset to Columns We Need
+energy_data <- energy_data %>%
+  select(c("Month", "Total Biomass Energy Production", "Total Renewable Energy Production", "Hydroelectric Power Consumption")) 
+head(energy_data)
+
+# Create time series object
+ts_energy <- ts(energy_data, start=1973, frequency=12) # Monthly data, freq=12
+```
+
+### Q1
+Create a plot window that has one row and three columns. And then for each object on your data frame, fill the plot window with time series plot, ACF and PACF. You may use the some code form A2, but I want all three plots on the same window this time. (Hint: use par() function)
+
+```{r}
+cols <- 4
+nobs <- nrow(energy_data) 
+titles <- colnames(ts_energy)
+
+# Times Series, ACF, PACF Plots
+for(i in 2:cols){
+  par(mfrow=c(1,3))  #place plot side by side
+  plot(ts_energy[,i], main="Time Series", ylab = titles[i])
+  Acf(ts_energy[,i],lag.max=40, main="ACF") 
+  Pacf(ts_energy[,i],lag.max=40, main="PACF")
+}
+
+```
+
+
+### Q2
+From the plot in Q1, do the series Total Biomass Energy Production, Total Renewable Energy Production, Hydroelectric Power Consumption appear to have a trend? If yes, what kind of trend?
+
+Total Biomass Energy Production appears to have a positive linear trend, with flat period in the middle and at the end of the time series. This could possibly be a polynomial trend. Total Renewable Energy Production appears to have a strong positive trend, which becomes steeper in the early 2000s. Hydroelectric Power Consumption appears to have a slight downward, mostly linear trend.
+
+### Q3
+Use the *lm()* function to fit a linear trend to the three time series. Ask R to print the summary of the regression. Interpret the regression output, i.e., slope and intercept. Save the regression coefficients for further analysis.
+
+```{r}
+t <- c(1:nobs)
+
+# Total Biomass Energy Production
+biomass_trend = lm(energy_data[,2] ~ t) 
+summary(biomass_trend)
+
+
+# Plot series with its trend line
+ggplot(energy_data, aes(x=Month, y=energy_data[,2])) +
+            geom_line(color="blue") +
+            ylab("Total Biomass Energy Production") +
+            #geom_abline(intercept = beta0, slope = beta1, color="red")
+            geom_smooth(color="red",method="lm") 
+```
+
+In January 1973, expected total biomass energy production is 133.74 trillion BTU. Each additional month is associated with a 0.48 trillion BTU increase in total biomass energy production on average. In other words, the linear trend that best fits monthly total biomass energy production from 1973 to 2022 begins at 133.74 trillion BTU and increases by 0.48 trillion BTU per month. 
+
+```{r}
+# Total Renewable Energy Production
+re_trend <- lm(energy_data[,3] ~ t) 
+summary(re_trend)
+
+# Plot series with its trend line
+ggplot(energy_data, aes(x=Month, y=energy_data[,3])) +
+            geom_line(color="blue") +
+            ylab("Total Renewable Energy Production") +
+            #geom_abline(intercept = beta0, slope = beta1, color="red")
+            geom_smooth(color="red",method="lm") 
+```
+In January 1973, expected total renewable energy production is 312.25 trillion BTU. Each additional month is associated with a 0.9362 trillion BTU increase in total renewable energy production on average. In other words, the linear trend that best fits monthly total renewable energy production from 1973 to 2022 begins at 312.25 trillion BTU and increases by 0.9362 trillion BTU per month. 
+
+```{r}
+# Hydroelectric Power Consumption
+hydro_trend <- lm(energy_data[,4] ~ t)
+summary(hydro_trend)
+
+# Plot series with its trend line
+ggplot(energy_data, aes(x=Month, y=energy_data[,4])) +
+            geom_line(color="blue") +
+            ylab("Total Renewable Energy Production") +
+            #geom_abline(intercept = beta0, slope = beta1, color="red")
+            geom_smooth(color="red",method="lm") 
+
+```
+In January 1973, expected hydroelectric power consumption is 259.9 trillion BTU. Each additional month is associated with a 0.083 trillion BTU decrease in hydroelectric power consumption on average. In other words, the linear trend that best fits monthly hydroelectric power consumption from 1973 to 2022 begins at 259.9 trillion BTU and decreases by 0.083 trillion BTU per month.
+
+### Q4
+Use the regression coefficients from Q3 to detrend the series. Plot the detrended series and compare with the plots from Q1. What happened? Did anything change?
+
+``` {r}
+# Detrend Each Series
+detrend_biomass <- energy_data[,2]-(as.numeric(biomass_trend$coefficients[1])+as.numeric(biomass_trend$coefficients[2])*t)
+detrend_re <- energy_data[,3]-(as.numeric(re_trend$coefficients[1])+as.numeric(re_trend$coefficients[2])*t)
+detrend_hydro <- energy_data[,4]-(as.numeric(hydro_trend$coefficients[1])+as.numeric(hydro_trend$coefficients[2])*t)
+
+# Biomass Detrended Plot
+biomass_orig <- ggplot(data=energy_data, aes(x=Month, y=energy_data[,2])) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Biomass Energy Production", subtitle="Original")  
+
+biomass_detrend <- ggplot(data=energy_data, aes(x=Month, y=detrend_biomass)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Biomass Energy Production", subtitle="Detrended")  
+
+plot_grid(biomass_orig, biomass_detrend)
+
+# RE Detrended Plot
+re_orig <- ggplot(data=energy_data, aes(x=Month, y=energy_data[,3])) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Renewable Energy Production", subtitle="Original")  
+
+re_detrend <- ggplot(data=energy_data, aes(x=Month, y=detrend_re)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Renewable Energy Production", subtitle="Detrended")  
+
+plot_grid(re_orig, re_detrend)
+
+# Hydro Detrended Plot
+hydro_orig <- ggplot(data=energy_data, aes(x=Month, y=energy_data[,4])) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Hydroelectric Power Consumption", subtitle="Original")  
+
+hydro_detrend <- ggplot(data=energy_data, aes(x=Month, y=detrend_hydro)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Hydroelectric Power Consumption", subtitle="Detrended")  
+
+plot_grid(hydro_orig, hydro_detrend)
+
+```
+For total biomass energy production and total renewable energy production, the portions of the time series that previously showed a positive trend are now much flatter. For hydroelectric power consumption, the detrended time series plot looks very similar to the original, but a bit flatter now that the slightly negative trend has been removed. 
+
+### Q5
+Plot ACF and PACF for the detrended series and compare with the plots from Q1. Did the plots change? How?
+
+``` {r}
+
+# Biomass Detrended ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(detrend_biomass,lag.max=40, main="ACF")
+  Pacf(detrend_biomass,lag.max=40, main="PACF")
+
+# RE Detrended ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(detrend_re,lag.max=40, main="ACF")
+  Pacf(detrend_re,lag.max=40, main="PACF")
+
+# RE Detrended ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(detrend_hydro,lag.max=40, main="ACF")
+  Pacf(detrend_hydro,lag.max=40, main="PACF")
+
+```
+
+For Total Biomass Energy Production and Total Renewable Energy Production, the ACF and PACF patterns looks fairly similar, but the magnitude of ACF and PACF values across 40 lags are consistently lower. In each case, the ACF on the detrended series appears to have a stronger cyclical pattern over the lags. For examples, on total RE production, the ACF value appears to spike every 10-15 lags (around 15, 25, 35), as the number of lags increases. Since this is month data, this could be picking up a seasonal pattern.
+
+For Hydroelectric Power Consumption, the magnitude and pattern of ACF and PACF values across 40 lags remain fairly similar in the original and detrended data. However, there is a slight change in the pattern - ACF values that were close to zero in the original data appear to have flipped negative or become more strongly negative in the detrended data.  
+
+## Seasonal Component
+
+Set aside the detrended series and consider the original series again from Q1 to answer Q6 to Q8.
+
+### Q6
+Do the series seem to have a seasonal trend? Which serie/series? Use function *lm()* to fit a seasonal means model (i.e. using the seasonal dummies) to this/these time series. Ask R to print the summary of the regression. Interpret the regression output. Save the regression coefficients for further analysis.
+
+``` {r}
+# Visually, it appears that all three series might have a seasonal component.
+
+# Create Dummies
+dummies <- seasonaldummy(ts_energy[,2])
+```
+
+
+``` {r}
+# Estimate Seasonal Means Model and Save Coefficients
+
+# Biomass
+biomass_seas <- lm(energy_data[,2]~dummies)
+beta_int_biomass = biomass_seas$coefficients[1]
+beta_coeff_biomass = biomass_seas$coefficients[2:12]
+summary(biomass_seas)
+```
+February is the only month whose average total biomass energy production is statistically significantly different from December, which is the baseline month/intercept (at the 90% confidence level). Thus, total biomass energy production does not demonstrate a strong seasonal pattern. 
+
+
+``` {r}
+# RE
+re_seas <- lm(energy_data[,3]~dummies)
+beta_int_re = re_seas$coefficients[1]
+beta_coeff_re = re_seas$coefficients[2:12]
+summary(re_seas)
+```
+Similar to monthly biomass production, only one month has statistically significantly different total renewable energy production compared to the baseline month, December. The coefficient on September is statistically significant at the 90% confidence level. Average total renewable energy consumption in December is expected to be 63.8 trillion BTU lower than total RE in December, which is 601.02 trillion BTU on average. Thus, total renewable energy production also does not demonstrate a strong seasonal pattern. 
+
+``` {r}
+# Hydro
+hydro_seas <- lm(energy_data[,4]~dummies)
+beta_int_hydro = hydro_seas$coefficients[1]
+beta_coeff_hydro = hydro_seas$coefficients[2:12]
+summary(hydro_seas)
+```
+Unlike biomass and renewable energy production, for total hydroelectric power consumption, nine months have statistically significant coefficients at least at the 90% confidence level, which suggests that hydro consumption exhibits seasonality. Average total hydroelectric power consumption is expect to be 237.2 trillion BTU in December. On average, hydroelectric power consumption is higher in March through June and lower in August through November compared to December. 
+
+
+### Q7
+Use the regression coefficients from Q6 to deseason the series. Plot the deseason series and compare with the plots from part Q1. Did anything change?
+
+``` {r}
+# Biomass
+biomass_seas_est=array(0,nobs)
+for(i in 1:nobs){
+  biomass_seas_est[i]=(beta_int_biomass+beta_coeff_biomass%*%dummies[i,])
+}
+deseason_biomass <- energy_data[,2]-biomass_seas_est
+
+biomass_deseas <- ggplot(data=energy_data, aes(x=Month, y=deseason_biomass)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Biomass Energy Production", subtitle="Deseasoned")  
+
+plot_grid(biomass_orig, biomass_deseas)
+
+# RE
+re_seas_est=array(0,nobs)
+for(i in 1:nobs){
+  re_seas_est[i]=(beta_int_re+beta_coeff_re%*%dummies[i,])
+}
+deseason_re <- energy_data[,3]-re_seas_est
+
+re_deseas <- ggplot(data=energy_data, aes(x=Month, y=deseason_re)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Renewable Energy Production", subtitle="Deseasoned")  
+
+plot_grid(re_orig, re_deseas)
+
+# Hydro
+hydro_seas_est=array(0,nobs)
+for(i in 1:nobs){
+  hydro_seas_est[i]=(beta_int_hydro+beta_coeff_hydro%*%dummies[i,])
+}
+deseason_hydro <- energy_data[,4]-hydro_seas_est
+
+hydro_deseas <- ggplot(data=energy_data, aes(x=Month, y=deseason_hydro)) +
+  geom_line() +
+  ylab("Trillion BTU") +
+  xlab("Month") +
+  labs(title="Total Hydroelectric Power Consumption", subtitle="Deseasoned")  
+
+plot_grid(hydro_orig, hydro_deseas)
+
+```
+For Total Biomass Energy Production and Total Renewable Energy Production, the time series plots still look very similar to the original ones, with some variation slightly smoothed out. For both of these variables, the seasonal models did not reveal significant seasonality, since most month coefficients were not statistically significant. Therefore, it might not be ideal to use those coefficients to deseason the data. 
+
+On the other hand, the seasonal model revealed seasonality in the hydroelectric power consumption variable. The deseased time series plot for this variable looks much smoother compared to the original times series plot.  
+
+### Q8
+Plot ACF and PACF for the deseason series and compare with the plots from Q1. Did the plots change? How?
+
+``` {r}
+# Biomass Deseasoned ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(deseason_biomass,lag.max=40, main="ACF")
+  Pacf(deseason_biomass,lag.max=40, main="PACF")
+  
+# RE Deseasoned ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(deseason_re,lag.max=40, main="ACF")
+  Pacf(deseason_re,lag.max=40, main="PACF")
+
+# Hydro Deseasoned ACF, PACF
+  par(mfrow=c(1,2))  #place plot side by side
+  Acf(deseason_hydro,lag.max=40, main="ACF")
+  Pacf(deseason_hydro,lag.max=40, main="PACF")
+
+```
+For total biomass energy production and total renewable energy production, the magnitude and overall pattern of ACF values across 40 lags is very similar, but in the deaseasoned version, the periodic spikes in ACF have now been smoothed out  and the PACF values after the first lag appear to have reduced in magnitude.
+
+For total hydroelectric power consumption, the pattern of ACF values over 40 lags has change a lot. In the original series, the ACF value fluctuated from positive to negative over the number of lags, while in the deseasoned version, the values are all positive and decreasing with the number of lags, which looks more similar to the biomass and renewable energy series. For the PACF, the change is similar to that of the other series, where the PACF values after the first lag are smaller in magnitude in the deseasoned version.
+
