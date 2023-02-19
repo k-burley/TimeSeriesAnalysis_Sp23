@@ -1,6 +1,7 @@
 ---
 title: "Import Data - ACF - PACF"
 author: "Luana Lima"
+student: "Katherine Burley"
 output: pdf_document
 editor_options: 
   chunk_output_type: console
@@ -22,6 +23,7 @@ It's useful to designate one code chunk to load packages on the beginning of the
 ```{r package, include=FALSE}
 library(lubridate)
 library(ggplot2)
+library(tidyverse)
 
 ```
 
@@ -56,31 +58,33 @@ raw_inflow_data <- read.table(file="./Data/inflowtimeseries.txt",header=FALSE,sk
 raw_inflow_data <- raw_inflow_data[,1:5] #the space before the comma means you want all rows
                                  #and 1:5 means all columns from 1 to 5
 nhydro <- ncol(raw_inflow_data)-2
-nobs <- nrow(raw_inflow_data) 
+nobs <- nrow(raw_inflow_data) # Important because sometimes we'll want to run for all hydros and know observations
 
 #If your file does not have header like this one you can add column names after creating the data frame
-colnames(raw_inflow_data)=c("Month","Year", "HP1", "HP2","HP3")
+colnames(raw_inflow_data)=c("Month","Year", "HP1", "HP2","HP3") # HP = Hydro Plant
 
 #Checking data
 head(raw_inflow_data)
 str(raw_inflow_data)
 ```
-## Date or time period
+## Date or time period - will always need to do this in time series!
 
 The data sets we will work with will be index by time, remember we are doing TIME series analysis. After importing your data set make sure that you have your dates right. For this specific inflow file our date is spread in two different columns. The first one is the month and the second the year. The best package to handle date conversion in R is lubridate. Let's see how we can use lubridate functions to combine those two columns into one date object. Note that this is only one example for our particular data set, for more info on lubridate function refer to tho this file [file](https://evoldyn.gitlab.io/evomics-2018/ref-sheets/R_lubridate.pdf) also available on our Sakai lessons page for M3.
 
 ```{r}
 #using package lubridate
 my_date <- paste(raw_inflow_data[,1],raw_inflow_data[,2],sep="-")
-my_date <- my(my_date)  #function my from package lubridate
-head(my_date)
+my_date <- my(my_date)  #function my from package lubridate (my = month year) - use the order that the elements are appearing
+  # can also use as.date, but you have to specify formatting
+  # lubridate does the formatting for you
+head(my_date) # assumes that its the first day of each month, that is ok.
+
 #add that to inflow_data 
 inflow_data <- cbind(my_date,raw_inflow_data[,3:5])
 head(inflow_data)
 format(my_date[1],format="%y-%m")
 format(my_date[1],format="%Y-%m")
-format(my_date[1],format="%Y-%b")
-
+format(my_date[1],format="%Y-%b") # Can always change the formatting if you would like. Can be useful for plotting
 
 ```
 
@@ -121,9 +125,14 @@ There are other useful plots available for data visualization like histograms an
 #Graph 3: Simple Histogram
 hist(inflow_data[,"HP1"])
 hist(inflow_data[,"HP1"],breaks=30,col="gray")  #increase number of bars with breaks input
+  # Helpful to see distribution
+  # Inflow data usually follow log-normal distribution
+  # Left skewed because no negative observations
+
 
 #Graph 4: Scatter Plot of HP1 and HP2
-plot(inflow_data[,"HP1"],inflow_data[,"HP2"])
+plot(inflow_data[,"HP1"],inflow_data[,"HP2"]) # strong, linear correlation between HP1 and HP2
+  # These reservoirs are close together, so we expect a strong correlation
 ```
 
 
@@ -140,8 +149,9 @@ ggplot(inflow_data, aes(x=my_date, y=HP1)) +
 ggplot(inflow_data, aes(x=my_date, y=Inflow)) +
             geom_line(aes(y=HP1,col="HP1")) +
             geom_line(aes(y=HP2,col="HP2")) +
+            geom_line(aes(y=HP3,col="HP3")) +
             xlab("Time") +
-            labs(color="Reservoir")
+            labs(color="Reservoir") 
 ```
 ## Transforming data into time series object
 
@@ -149,9 +159,36 @@ Many of the functions we will use require a time series object. You can transfor
 
 ```{r}
 ts_inflow_data <- ts(inflow_data[,2:(2+nhydro-1)]) #note that we are only transforming columns with inflow data, not the date columns
+  # Can also use $ dataframe syntax
 ts_inflow_data
 #plot(ts_inflow_data[,1])
+acf(ts_inflow_data[,1]) # Will always range between (-1,1)
+  # We can see a seasonal component here
+pacf(ts_inflow_data[,1]) # Will always range between (-1,1)
+
 ```
 
 Note that ts_inflow_data has information on start, end and frequency. We will discuss frequency in future lectures, for now let's just keep the default value for frequency which is 1.
 
+## ACF PACF
+
+```{r}
+
+acf(ts_inflow_data[,1], lag.max=50)
+pacf(ts_inflow_data[,1], lag.max=50)
+
+library(forecast)
+Acf(ts_inflow_data[,1], lag.max=50)
+Pacf(ts_inflow_data[,1], lag.max=50)
+
+```
+
+## Trend Exploration in Class 1/31/23
+```{r}
+inflow_data <- inflow_data %>%
+  mutate(year=as.numeric(format(my_date,'%Y'))) %>%
+  filter(year!=2011)
+
+# inflow_data <- inflow_data[1:(nobs-12),]
+
+```

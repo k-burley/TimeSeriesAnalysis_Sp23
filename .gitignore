@@ -45,5 +45,3 @@ vignettes/*.pdf
 #Mac files
 .DS_Store
 
-#Lesson pdf
-*.pdf
